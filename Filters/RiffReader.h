@@ -156,14 +156,16 @@ public:
             pos += frame * blockAlign;
             auto end = dataChunkBegin;
             end += dataChunkSize;
-            if (inputFile.eof())
-                inputFile.clear();
             if (pos > 0 && pos <= end)
+            {
+                if (inputFile.eof())
+                    inputFile.clear();
                 inputFile.seekg(pos);
+            }
         }
     }
     
-    uint16_t get_format() const {        return format;    }
+    uint16_t get_format() const { return format;}
     uint16_t get_numChannels() const { return numChannels;}
     uint32_t get_sampleRate() const { return sampleRate;}
     uint32_t get_byteRate() const { return byteRate;}
@@ -181,5 +183,4 @@ protected:
     uint16_t blockAlign;
     uint16_t bitsPerSample;
     uint32_t dataChunkSize;
-
 };

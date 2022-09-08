@@ -65,6 +65,9 @@ bool PrecomputeSinCos::ComputeSinCos(unsigned framesPerSec, unsigned  mixF, std:
     return closestOneNeg;
 }
 
+// At a snapshot in time, we want to change the mixer frequency. The output will glitch if we just to the beginning of the
+// table. MinimizeSinCosGlitch searches the new table for the previous values and suggests where to start in the new table
+// based on a measure of how bit the glitch will be.
 unsigned PrecomputeSinCos::MinimizeSinCosGlitch(double prevMixI, double prevMixQ, unsigned Qindex, double Qscale, const std::vector<double>& sine)
 {
     static const unsigned MIN_TABLE_SIZE_TO_SEARCH = 100;
@@ -88,6 +91,5 @@ unsigned PrecomputeSinCos::MinimizeSinCosGlitch(double prevMixI, double prevMixQ
             bestIdx = g;
         }
     }
-
     return ret;
 }

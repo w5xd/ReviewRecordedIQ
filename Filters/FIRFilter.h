@@ -49,11 +49,11 @@ typedef double FilterCoeficient_t;
             if (len == 0)
                 return; // not allowed
             if (len != m_history.size())
-            {
+            {   
                 m_history.resize(len);
                 memset(&m_history[0], 0, sizeof(float) * len);
                 m_lastIndex = 0;
-            }
+            } // else keep the history for real time glitch reduction.
             m_pCoef = pCoef;
         }
 

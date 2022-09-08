@@ -172,11 +172,13 @@ int main(int argc, char **argv)
     if (!inputFile.is_open())
     {
         std::cerr << "No input file specified" << std::endl;
+        usage();
         return 1;
     }
     if (!outputFile.is_open())
     {
         std::cerr << "No output file specified" << std::endl;
+        usage();
         return 1;
     }
 
@@ -214,10 +216,6 @@ namespace Filter_Octave {
     const int SAMPLEFILTER_TAP_NUM(401);
     extern FilterCoeficient_t filter_taps[];
 }
-namespace Filter_Octave_Narrow {
-    const int SAMPLEFILTER_TAP_NUM(401);
-    extern FilterCoeficient_t filter_taps[];
-}
 
 namespace {
     const int OUTPUT_CHUNK_FRAME_COUNT = 2048;
@@ -238,7 +236,7 @@ namespace {
             , m_MixIindex(0)
             , m_MixQindex(0)
             , m_QScale(1)
-            , m_bandPassFilters(2) // one for I one for Q 
+            , m_bandPassFilters(STEREO) // one for I one for Q 
             , m_outputDecimate(0)
             , m_outputBuffer(OUTPUT_CHUNK_FRAME_COUNT* STEREO)
             , m_outputBufferPosition(0)
@@ -300,19 +298,17 @@ namespace {
             outputFile.write(&buf[0], 2);
             // FORMATETC done
 
+            // Write stuff in "0SDR" chunk so ReviewRecordedIQ can see what we did here.
             #pragma warning (push)
-            #pragma warning (disable: 4996) // VS won't compile std::gmmtime cuz its not thread safe. don't care here
-
+            #pragma warning (disable: 4996) // VS won't compile std::gmtime cuz its not thread safe. don't care here
             auto ot = std::chrono::system_clock::to_time_t(outputStartTime);
             auto tm = *std::gmtime(&ot);
+            #pragma warning (pop)
             std::ostringstream oss;
             oss << "--outputStartTime=" << std::put_time(&tm, DateFormatDescriptor);
             oss << " --outputCenterKHz=" << outputCenterKHz;
-
-            #pragma warning (pop)
-
             outputFile.write("0SDR", 4); // 0SDR chunk to show the parameters we used
-            unsigned SdrChunkSize = oss.str().length();
+            unsigned SdrChunkSize = static_cast<unsigned>(oss.str().length());
             // make the chunksize a multiple of 16. have no idea if this is necessary,
             // but I am not going to mess up the alignment
             SdrChunkSize += 15;
@@ -327,7 +323,7 @@ namespace {
             outputFile.write(&buf[0], buf.size());
             outputFile.write(oss.str().c_str(), SdrChunkSize);
 
-            outputFile.write("data", 4); // start 'data' chunk
+            outputFile.write("data", 4); // start the required, final 'data' chunk
             m_dataChunkByteCountPos = outputFile.tellp();
             memset(&buf[0], 0, 4);
             outputFile.write(&buf[0], 4);
@@ -363,7 +359,7 @@ namespace {
                     m_outputDecimate = 0;
                     auto outI = m_bandPassFilters[0].value();
                     auto outQ = m_bandPassFilters[1].value();
-                    // TODO..output buffer must be little endian. no code here to fix that.
+                    // TODO..output buffer must be little endian. Big endian machine must fix.
                     m_outputBuffer[m_outputBufferPosition++] = static_cast<float>(outI);
                     m_outputBuffer[m_outputBufferPosition++] = static_cast<float>(outQ);
                     if (m_outputBufferPosition >= m_outputBuffer.size())
@@ -377,6 +373,9 @@ namespace {
             if (m_outputBufferPosition > 0)
                 writeDataChunk();
 
+            // RIFF format requires us to seek back into the header of the
+            // file and overwrite two different byte counts.
+
             auto posHere = m_outputFile.tellp();
             uint32_t RiffChunkSize = static_cast<uint32_t>(posHere);
             RiffChunkSize -= 8;
@@ -388,7 +387,6 @@ namespace {
             buf[3] = static_cast<char>(RiffChunkSize >> 24);
             m_outputFile.seekp(4);
             m_outputFile.write(&buf[0], buf.size());
-
 
             buf[0] = static_cast<char>(m_dataChunkByteCount);
             buf[1] = static_cast<char>(m_dataChunkByteCount >> 8);
@@ -466,6 +464,7 @@ namespace {
             return 1;
         }
 
+        // set up a couple of function objects for the RiffReader to call us back with
 
         RiffReader::DataChunkFcn_t procFcn = [pOutput, blockAlign, &inputFramesToProcess] (unsigned char *p, unsigned numFrames)
         {
@@ -483,7 +482,9 @@ namespace {
         if (inputFramesToSkip)
             dataFcn = [inputFramesToSkip, &rr, &dataFcn, &procFcn] (unsigned char *, unsigned)
             {
+                // update the file handle
                 rr.SeekToFrameNumber(inputFramesToSkip);
+                // overwrite the function object so next call processes after the skip.
                 dataFcn = procFcn;
                 return true;
             };
@@ -910,415 +911,3 @@ namespace Filter_Octave {
     };
 }
 
-namespace Filter_Octave_Narrow {
-    /*  f = 4000/192000
-        b = fir1(400, f)
-        fd = fopen("d:/temp/f.txt", "w")
-        fprintf(fd, "%10g,\n", b)
-        fclose(fd)
-    */
-    FilterCoeficient_t filter_taps[SAMPLEFILTER_TAP_NUM] =
-    {
--7.29748e-06,
--1.45366e-05,
--2.18485e-05,
--2.92359e-05,
--3.67006e-05,
--4.42437e-05,
--5.18648e-05,
--5.95619e-05,
--6.73312e-05,
--7.51665e-05,
--8.30593e-05,
--9.09982e-05,
--9.89688e-05,
--0.000106954,
--0.000114931,
--0.000122878,
--0.000130764,
--0.000138558,
--0.000146224,
--0.000153722,
--0.000161008,
--0.000168034,
--0.000174749,
--0.000181098,
--0.000187022,
--0.000192459,
--0.000197344,
--0.000201612,
--0.000205191,
--0.000208011,
--0.000209999,
--0.000211082,
--0.000211185,
--0.000210235,
--0.000208159,
--0.000204885,
--0.000200344,
--0.000194469,
--0.000187196,
--0.000178467,
--0.000168225,
--0.000156423,
--0.000143017,
--0.000127971,
--0.000111256,
--9.28533e-05,
--7.27503e-05,
--5.09454e-05,
--2.74468e-05,
--2.2734e-06,
-2.45447e-05,
-5.29658e-05,
-8.29362e-05,
-0.00011439,
-0.000147248,
-0.000181419,
-0.000216797,
-0.000253266,
-0.000290695,
-0.000328939,
-0.000367841,
-0.000407233,
-0.000446932,
-0.000486745,
-0.000526467,
-0.000565883,
-0.000604767,
-0.000642885,
-0.000679993,
-0.000715841,
-0.000750172,
-0.000782724,
-0.000813232,
-0.000841427,
-0.000867038,
-0.000889796,
-0.000909433,
-0.000925682,
-0.000938283,
-0.000946982,
-0.000951531,
-0.000951693,
-0.000947242,
-0.000937965,
-0.000923661,
-0.00090415,
-0.000879265,
-0.000848861,
-0.000812814,
-0.000771022,
-0.000723405,
-0.000669913,
-0.000610518,
-0.000545222,
-0.000474058,
-0.000397085,
-0.000314397,
-0.000226118,
-0.000132404,
-3.34464e-05,
--7.05318e-05,
--0.000179273,
--0.000292485,
--0.000409842,
--0.000530984,
--0.000655519,
--0.00078302,
--0.000913029,
--0.00104505,
--0.00117858,
--0.00131305,
--0.00144789,
--0.00158249,
--0.00171623,
--0.00184844,
--0.00197847,
--0.00210562,
--0.00222917,
--0.0023484,
--0.00246258,
--0.00257096,
--0.00267279,
--0.00276732,
--0.00285379,
--0.00293144,
--0.00299954,
--0.00305732,
--0.00310408,
--0.00313909,
--0.00316167,
--0.00317112,
--0.00316681,
--0.00314811,
--0.00311442,
--0.00306519,
--0.0029999,
--0.00291806,
--0.00281922,
- -0.002703,
--0.00256904,
--0.00241705,
--0.00224677,
- -0.002058,
--0.00185063,
--0.00162455,
--0.00137976,
--0.00111629,
--0.000834236,
--0.000533773,
--0.000215122,
-0.000121425,
-0.000475515,
-0.000846729,
-0.00123459,
-0.00163854,
-0.00205799,
-0.00249227,
-0.00294064,
-0.00340233,
-0.00387649,
-0.00436222,
-0.00485858,
-0.00536458,
-0.00587916,
-0.00640124,
-0.00692969,
-0.00746335,
-  0.008001,
-0.00854143,
-0.00908337,
-0.00962555,
- 0.0101667,
- 0.0107054,
- 0.0112404,
- 0.0117704,
-  0.012294,
-   0.01281,
- 0.0133169,
- 0.0138135,
- 0.0142985,
- 0.0147706,
- 0.0152286,
- 0.0156712,
- 0.0160973,
- 0.0165057,
- 0.0168953,
- 0.0172651,
-  0.017614,
- 0.0179411,
- 0.0182455,
- 0.0185263,
- 0.0187829,
- 0.0190143,
- 0.0192201,
- 0.0193997,
- 0.0195525,
-  0.019678,
- 0.0197761,
- 0.0198463,
- 0.0198885,
- 0.0199026,
- 0.0198885,
- 0.0198463,
- 0.0197761,
-  0.019678,
- 0.0195525,
- 0.0193997,
- 0.0192201,
- 0.0190143,
- 0.0187829,
- 0.0185263,
- 0.0182455,
- 0.0179411,
-  0.017614,
- 0.0172651,
- 0.0168953,
- 0.0165057,
- 0.0160973,
- 0.0156712,
- 0.0152286,
- 0.0147706,
- 0.0142985,
- 0.0138135,
- 0.0133169,
-   0.01281,
-  0.012294,
- 0.0117704,
- 0.0112404,
- 0.0107054,
- 0.0101667,
-0.00962555,
-0.00908337,
-0.00854143,
-  0.008001,
-0.00746335,
-0.00692969,
-0.00640124,
-0.00587916,
-0.00536458,
-0.00485858,
-0.00436222,
-0.00387649,
-0.00340233,
-0.00294064,
-0.00249227,
-0.00205799,
-0.00163854,
-0.00123459,
-0.000846729,
-0.000475515,
-0.000121425,
--0.000215122,
--0.000533773,
--0.000834236,
--0.00111629,
--0.00137976,
--0.00162455,
--0.00185063,
- -0.002058,
--0.00224677,
--0.00241705,
--0.00256904,
- -0.002703,
--0.00281922,
--0.00291806,
--0.0029999,
--0.00306519,
--0.00311442,
--0.00314811,
--0.00316681,
--0.00317112,
--0.00316167,
--0.00313909,
--0.00310408,
--0.00305732,
--0.00299954,
--0.00293144,
--0.00285379,
--0.00276732,
--0.00267279,
--0.00257096,
--0.00246258,
--0.0023484,
--0.00222917,
--0.00210562,
--0.00197847,
--0.00184844,
--0.00171623,
--0.00158249,
--0.00144789,
--0.00131305,
--0.00117858,
--0.00104505,
--0.000913029,
--0.00078302,
--0.000655519,
--0.000530984,
--0.000409842,
--0.000292485,
--0.000179273,
--7.05318e-05,
-3.34464e-05,
-0.000132404,
-0.000226118,
-0.000314397,
-0.000397085,
-0.000474058,
-0.000545222,
-0.000610518,
-0.000669913,
-0.000723405,
-0.000771022,
-0.000812814,
-0.000848861,
-0.000879265,
-0.00090415,
-0.000923661,
-0.000937965,
-0.000947242,
-0.000951693,
-0.000951531,
-0.000946982,
-0.000938283,
-0.000925682,
-0.000909433,
-0.000889796,
-0.000867038,
-0.000841427,
-0.000813232,
-0.000782724,
-0.000750172,
-0.000715841,
-0.000679993,
-0.000642885,
-0.000604767,
-0.000565883,
-0.000526467,
-0.000486745,
-0.000446932,
-0.000407233,
-0.000367841,
-0.000328939,
-0.000290695,
-0.000253266,
-0.000216797,
-0.000181419,
-0.000147248,
-0.00011439,
-8.29362e-05,
-5.29658e-05,
-2.45447e-05,
--2.2734e-06,
--2.74468e-05,
--5.09454e-05,
--7.27503e-05,
--9.28533e-05,
--0.000111256,
--0.000127971,
--0.000143017,
--0.000156423,
--0.000168225,
--0.000178467,
--0.000187196,
--0.000194469,
--0.000200344,
--0.000204885,
--0.000208159,
--0.000210235,
--0.000211185,
--0.000211082,
--0.000209999,
--0.000208011,
--0.000205191,
--0.000201612,
--0.000197344,
--0.000192459,
--0.000187022,
--0.000181098,
--0.000174749,
--0.000168034,
--0.000161008,
--0.000153722,
--0.000146224,
--0.000138558,
--0.000130764,
--0.000122878,
--0.000114931,
--0.000106954,
--9.89688e-05,
--9.09982e-05,
--8.30593e-05,
--7.51665e-05,
--6.73312e-05,
--5.95619e-05,
--5.18648e-05,
--4.42437e-05,
--3.67006e-05,
--2.92359e-05,
--2.18485e-05,
--1.45366e-05,
--7.29748e-06,
-    };
-}

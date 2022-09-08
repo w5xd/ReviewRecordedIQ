@@ -1,4 +1,9 @@
 /* Copyright (c) 2022, Wayne Wright, W5XD. All rights reserved. */
+
+/* An entire SDR implementation in (almost) a single source file. 
+*  The filter and precompute sine/cosine are the other sources.
+*/
+
 #include "SimpleSdrImpl.h"
 #include <AudioSink.h>
 #include <RiffReader.h>
@@ -32,12 +37,13 @@ namespace XDSdr {
     namespace impl {
 
         const unsigned IQ_AND_OUTPUT_FRAMES_PER_SECOND = 12000;
-        const unsigned PRECOMPUTE_SIN_COS_DENSITY = 2; // double the frequency of the table
+        const unsigned PRECOMPUTE_SIN_COS_DENSITY = 2; // double the resolution of the table
 
         class SimpleSDRImpl
         {
         public:
-            SimpleSDRImpl(const std::string &fileName, void *sink) 
+            SimpleSDRImpl(const std::string &fileName, 
+                void *sink) // The audioSink void pointer drill accomodates passing pointers between .NET objects.
                 : m_bandwidth(SimpleSDR::UNINITIALIZED)
                 , m_RxFrequencyKHz(0)
                 , m_BfoOffsetKHz(0)
@@ -173,15 +179,16 @@ namespace XDSdr {
                         // populate the sine table.
                         // use the same table for cosine but start in different position.
                         bool closestOneNeg = PrecomputeSinCos::ComputeSinCos(
-                            IQ_AND_OUTPUT_FRAMES_PER_SECOND, newMix >= 0 ? newMix : -newMix, m_MixCoef, m_MixQindex, PRECOMPUTE_SIN_COS_DENSITY);
+                            IQ_AND_OUTPUT_FRAMES_PER_SECOND, newMix >= 0 ? newMix : -newMix, 
+                            m_MixCoef, m_MixQindex, PRECOMPUTE_SIN_COS_DENSITY);
                         if (closestOneNeg)
                             m_QScale *= -1.f;// flip mixQ summation if we're using upside-down cosine
                         auto deGlitch = PrecomputeSinCos::MinimizeSinCosGlitch(prevMixI, prevMixQ, m_MixQindex, m_QScale, m_MixCoef);
                         m_MixIindex += deGlitch; m_MixQindex += deGlitch;
                         if (m_MixIindex >= m_MixCoef.size())
-                            m_MixIindex -= m_MixCoef.size();
+                            m_MixIindex -= static_cast<unsigned>(m_MixCoef.size());
                         if (m_MixQindex >= m_MixCoef.size())
-                            m_MixQindex -= m_MixCoef.size();
+                            m_MixQindex -= static_cast<unsigned>(m_MixCoef.size());
                         m_mixFrequency = newMix;
                     });
                     m_cond.notify_all();
@@ -222,15 +229,16 @@ namespace XDSdr {
                             // populate the sine table.
                             // use the same table for cosine but start in different position.
                             bool closestOneNeg = PrecomputeSinCos::ComputeSinCos(
-                                IQ_AND_OUTPUT_FRAMES_PER_SECOND, newMix >= 0 ? newMix : -newMix, m_WeaverMix, m_WeaverQindex, PRECOMPUTE_SIN_COS_DENSITY);
+                                IQ_AND_OUTPUT_FRAMES_PER_SECOND, newMix >= 0 ? newMix : -newMix, 
+                                m_WeaverMix, m_WeaverQindex, PRECOMPUTE_SIN_COS_DENSITY);
                             if (closestOneNeg)
                                 m_WeaverQScale *= -1.f;// flip mixQ summation if we're using upside-down cosine
                             auto deGlitch = PrecomputeSinCos::MinimizeSinCosGlitch(prevMixI, prevMixQ, m_WeaverQindex, m_WeaverQScale, m_WeaverMix);
                             m_WeaverIindex += deGlitch; m_WeaverQindex += deGlitch;
                             if (m_WeaverIindex >= m_WeaverMix.size())
-                                m_WeaverIindex -= m_WeaverMix.size();
+                                m_WeaverIindex -= static_cast<unsigned>(m_WeaverMix.size());
                             if (m_WeaverQindex >= m_WeaverMix.size())
-                                m_WeaverQindex -= m_WeaverMix.size();
+                                m_WeaverQindex -= static_cast<unsigned>(m_WeaverMix.size());
                             m_WeaverFreq = newMix;
                         });
                     m_cond.notify_all();
@@ -289,17 +297,17 @@ namespace XDSdr {
         private:
             typedef std::unique_lock<std::mutex> lock_t;
             void thread()
-            {
+            {   // where the thread starts
                 RiffReader::RiffChunkFcn_t riff = [this](const char*buf, unsigned chunkSize, std::ifstream& infile)
                 {
+                    // look for chunk that SliceIQ put in there just for us.
                     if (strncmp(buf, "0SDR", 4) == 0)
                     {
                         std::vector<char> buf(chunkSize); 
                         infile.read(&buf[0], chunkSize);
                         lock_t l(m_mutex);
                         for (auto &c : buf)
-                            if (isprint(c))
-                                m_fromSliceIQ += c;
+                            if (isprint(c)) m_fromSliceIQ += c;
                     }
                 };
                 RiffReader::AtEndFcn_t atEnd = [this]() {
@@ -309,7 +317,9 @@ namespace XDSdr {
                     dispatchQueueItems(l);
                     return m_stop;
                 };
-                m_riffReader.ProcessChunks(std::bind(&SimpleSDRImpl::chunk, this, std::placeholders::_1, std::placeholders::_2), riff, atEnd);
+                m_riffReader.ProcessChunks(std::bind(&SimpleSDRImpl::chunk, this, 
+                    std::placeholders::_1, std::placeholders::_2), riff, atEnd);
+                // where the thread ends
             }
 
             typedef std::function<void()> OnChunkThreadFcn_t;
@@ -321,8 +331,8 @@ namespace XDSdr {
                 {
                     auto fcn = m_queue.front();
                     m_queue.pop_front();
-                    l.unlock();
-                    fcn();
+                    l.unlock(); // don't ever call out while holding a mutex
+                    fcn();  
                     l.lock();
                     return true;
                 }
@@ -420,7 +430,6 @@ namespace XDSdr {
                     // ...The sum of the I+Q detects Weaver
                     double v = m_bandPassFilters[0].value() * weaverI;
                     v += m_bandPassFilters[1].value() * weaverQ * m_WeaverQScale;
-
                     ret.push_back(static_cast<float>(v));
                 }
                 return ret;
@@ -458,13 +467,13 @@ namespace XDSdr {
             double m_gain;
             float m_maxObserved;
 
+            std::ifstream m_inputWave;
             std::string m_fromSliceIQ;
+            RiffReader m_riffReader;
 
             bool m_stop;
             bool m_pause;
-            RiffReader m_riffReader;
             unsigned m_currentFrameNumber;
-            std::ifstream m_inputWave;
             float m_RxFrequencyKHz;
             float m_BfoOffsetKHz;
             SimpleSDR::SdrDecodeBandwidth m_bandwidth;

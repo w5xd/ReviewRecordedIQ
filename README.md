@@ -9,11 +9,12 @@ two distinct steps:
 each sample a 32 bit float, and in stereo (in-phase in the Left channel and quadrature-phase in the Right.)
 Such a recording occupies (about) 1.5M bytes per second of recording (or 5.5GB per hour.)
 
-1. The SliceIQ tool in this project takes such a WAV file as its input, and processes a "sliced" IQ
-file as its output. The "Slice" is a slice both in the time domain--between two time stamps--and
+1. The SliceIQ tool in this project takes such a WAV file as its input, and produces a "sliced" IQ
+file as its output. The "Slice" is a slice both in the time domain&mdash;between two time stamps&mdash;and
 also in the frequency domain. Its output is fixed at a 12KHz sample rate (compared to 192KHz in
-the input) which is a 16:1 reduction in file size per second of recording, and is formatted using
-the same RIFF file format as its input.
+the input) which is a 16:1 reduction in file size per second of recording. Its output file format is
+the same RIFF file format as its input (and it turns out other SDR programs like <a href='http://hdsdr.de'>HDSDR</a> can play
+the sliced result.)
 
 2. The ReviewRecordedIQ tool is compact SDR implementation designed to consume the output of
 step (1). That is, it takes a .WAV input at 12000 samples per second.
@@ -23,7 +24,8 @@ SliceIQ is a command line program. It takes the following command line arguments
 
 <code>
 <pre>
-** SliceIQ <InputFile.wav> <OutputFile.wav>
+**
+** SliceIQ <i>InputFile.wav</i> <i>OutputFile.wav</i>
 **
 ** The input is described by these optional command line arguments:
 ** --inputCenterKHz=nnnnn
@@ -59,7 +61,7 @@ in this screen shot.)
 
 To use it:
 Check that the audio output device in the lower left corner is where you want to
-hear the radio output. Then <i>Select WAV file..</i> and pick an output from
+hear the radio output. Then <i>Select WAV file..</i> and pick an output file created by
 SliceIQ. Press <i>Play</i> and the audio decoded according to the three SDR
 decoding parameters on the far right (center frequency, bandwidth, and weaver
 frequency.) You don't need to know who Weaver was, nor what a weaver frequency
@@ -73,8 +75,8 @@ the Pause stops (which also enables the scroll bar, to move to a time point.)
 
 # architecture
 
-SliceIQ is in C++ and is portable to the Gnu g++ compiler on linux.
+SliceIQ is in C++ and is portable to Visual Studio and the Gnu g++ compiler on linux.
 
 The ReviewRecordedIQ application's main window is in .NET and C# and runs only on Windows. However,
-it uses the SimpleSdrImpl in the SimpleSdr folder, and that call compiles using g++. It is an
+it uses the SimpleSdrImpl in the SimpleSdr folder, and that class compiles using g++. It is an
 exercise to the reader to construct a Linux user interface.
