@@ -1,0 +1,10 @@
+.vs
+Release
+Debug
+Win32
+bin
+obj
+x64
+*~
+*.o
+*.swp

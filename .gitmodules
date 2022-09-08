@@ -1,0 +1,6 @@
+[submodule "RC1101-PC"]
+	path = RC1101-PC
+	url = https://github.com/w5xd/RC1101-PC.git
+[submodule "WindowsAudio"]
+	path = WindowsAudio
+	url = https://github.com/w5xd/Digi-XD.git
