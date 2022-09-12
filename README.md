@@ -17,7 +17,7 @@ the same RIFF file format as its input (and it turns out other SDR programs like
 the sliced result.)
 
 2. The ReviewRecordedIQ tool is compact SDR implementation designed to consume the output of
-step (1). That is, it takes a .WAV input at 12000 samples per second.
+step (1). That is, it takes a .WAV input at 12000 samples per second and plays it through a Windows sound device.
 
 # SliceIQ
 SliceIQ is a command line program. It takes the following command line arguments:
@@ -73,10 +73,10 @@ is. Just press one of the "Decoding Presets".
 The Upper left corner controls allow you to scroll in the time domain. The >> and << buttons skip forward and backwards 5 seconds,
 the Pause stops (which also enables the scroll bar, to move to a time point.)
 
-# architecture
+# Architecture
 
-SliceIQ is in C++ and is portable to Visual Studio and the Gnu g++ compiler on linux.
+SliceIQ is in C++ using the standard C++ library. it builds in Visual Studio and the Gnu g++ compiler on linux.
 
 The ReviewRecordedIQ application's main window is in .NET and C# and runs only on Windows. However,
-it uses the SimpleSdrImpl in the SimpleSdr folder, and that class compiles using g++. It is an
+it uses the SimpleSdrImpl in the SimpleSdr folder, and that class compiles using g++. It is left as an
 exercise to the reader to construct a Linux user interface.
