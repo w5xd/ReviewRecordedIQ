@@ -53,9 +53,9 @@ program here can decoded it, as can, for example, <a href='https://hdsdr.de/'>HD
 # ReviewRecordedIQ
 
 ReviewRecordedIQ is a .NET application that presents the following interface. ReviewRecordedIQ
-has an advantage over HDSDR when reading the output of SliceIQ. The latter writes
+has an advantage over HDSDR when reading the output of SliceIQ. SliceIQ writes
 its slicing parameters into its output .WAV file in a format that ReviewRecordedIQ can read. That
-is why ReviewRecordedIQ can display the frequency of the original recorded bandwidth (around 14.296MHz
+enables ReviewRecordedIQ to display the frequency of the original recorded bandwidth (around 14.296MHz
 in this screen shot.) 
 <p align='center'><img src='ReviewRecordedIQ.png' alt='ReviewRecordedIQ.png'/></p>
 
